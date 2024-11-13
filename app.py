@@ -1,86 +1,75 @@
-# Task 1: Setting Up the Flask Environment and Database Connection
-from flask import Flask
-import mysql.connector
-
-app = Flask(__name__)
-
-db = mysql.connector.connect(
-    host="localhost",
-    user="your_username",
-    password="your_password",
-    database="your_database"
-)
-
-cursor = db.cursor(dictionary=True)
-
-# Task 2: Implementing CRUD Operations for Members
 from flask import Flask, request, jsonify
+from models import execute_query
 
 app = Flask(__name__)
 
-# Assuming db and cursor are already defined as shown above
-
+# Route to add a new member
 @app.route('/members', methods=['POST'])
 def add_member():
-    data = request.get_json()
-    query = "INSERT INTO Members (name, email) VALUES (%s, %s)"
-    values = (data['name'], data['email'])
-    try:
-        cursor.execute(query, values)
-        db.commit()
-        return jsonify({"message": "Member added successfully!"}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    data = request.json
+    query = "INSERT INTO Members (name, age, email) VALUES (%s, %s, %s)"
+    execute_query(query, (data['name'], data['age'], data['email']))
+    return jsonify({'message': 'Member added successfully'}), 201
 
+# Route to retrieve a member by ID
 @app.route('/members/<int:id>', methods=['GET'])
 def get_member(id):
     query = "SELECT * FROM Members WHERE id = %s"
-    cursor.execute(query, (id,))
-    member = cursor.fetchone()
+    member = execute_query(query, (id,))
     if member:
-        return jsonify(member), 200
-    else:
-        return jsonify({"message": "Member not found"}), 404
+        return jsonify(member[0])
+    return jsonify({'error': 'Member not found'}), 404
 
+# Route to update a member
 @app.route('/members/<int:id>', methods=['PUT'])
 def update_member(id):
-    data = request.get_json()
-    query = "UPDATE Members SET name = %s, email = %s WHERE id = %s"
-    values = (data['name'], data['email'], id)
-    try:
-        cursor.execute(query, values)
-        db.commit()
-        return jsonify({"message": "Member updated successfully!"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    data = request.json
+    query = "UPDATE Members SET name = %s, age = %s, email = %s WHERE id = %s"
+    execute_query(query, (data['name'], data['age'], data['email'], id))
+    return jsonify({'message': 'Member updated successfully'})
 
+# Route to delete a member
 @app.route('/members/<int:id>', methods=['DELETE'])
 def delete_member(id):
     query = "DELETE FROM Members WHERE id = %s"
-    try:
-        cursor.execute(query, (id,))
-        db.commit()
-        return jsonify({"message": "Member deleted successfully!"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    execute_query(query, (id,))
+    return jsonify({'message': 'Member deleted successfully'})
 
-# Task 3: Managing Workout Sessions
-
+# Route to schedule a new workout session
 @app.route('/workouts', methods=['POST'])
-def schedule_workout():
-    data = request.get_json()
-    query = "INSERT INTO WorkoutSessions (member_id, session_date, details) VALUES (%s, %s, %s)"
-    values = (data['member_id'], data['session_date'], data['details'])
-    try:
-        cursor.execute(query, values)
-        db.commit()
-        return jsonify({"message": "Workout session scheduled successfully!"}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+def add_workout():
+    data = request.json
+    query = "INSERT INTO WorkoutSessions (member_id, session_date, duration) VALUES (%s, %s, %s)"
+    execute_query(query, (data['member_id'], data['session_date'], data['duration']))
+    return jsonify({'message': 'Workout session scheduled successfully'}), 201
 
-@app.route('/workouts/<int:member_id>', methods=['GET'])
-def get_workouts_for_member(member_id):
+# Route to update an existing workout session
+@app.route('/workouts/<int:id>', methods=['PUT'])
+def update_workout(id):
+    data = request.json
+    query = "UPDATE WorkoutSessions SET session_date = %s, duration = %s WHERE id = %s"
+    execute_query(query, (data['session_date'], data['duration'], id))
+    return jsonify({'message': 'Workout session updated successfully'})
+
+# Route to retrieve all workout sessions
+@app.route('/workouts', methods=['GET'])
+def get_all_workouts():
+    query = "SELECT * FROM WorkoutSessions"
+    workouts = execute_query(query)
+    return jsonify(workouts)
+
+# Route to retrieve all workout sessions for a specific member
+@app.route('/members/<int:member_id>/workouts', methods=['GET'])
+def get_member_workouts(member_id):
     query = "SELECT * FROM WorkoutSessions WHERE member_id = %s"
-    cursor.execute(query, (member_id,))
-    sessions = cursor.fetchall()
-    return jsonify(sessions), 200
+    workouts = execute_query(query, (member_id,))
+    return jsonify(workouts)
+
+# Error handling for invalid routes
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({'error': 'Route not found'}), 404
+
+# Run the Flask application
+if __name__ == '__main__':
+    app.run(debug=True)
